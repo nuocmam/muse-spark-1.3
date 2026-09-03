@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Penguin Tetris — Ice Edition</title>
+<style>
+:root{
+  --deep:#04162e;
+  --sea:#0b3c6b;
+  --ice:#bfe9ff;
+  --ice2:#7fd1ff;
+  --text:#eaf7ff;
+  --muted:#9cc7e6;
+  --panel:rgba(8,36,72,.78);
+  --edge:rgba(191,233,255,.28);
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,sans-serif;
+  color:var(--text);
+  background:radial-gradient(ellipse at 50% -10%,#1d5f9a 0%,var(--sea) 40%,var(--deep) 100%);
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:18px 12px 40px;
+  overflow-x:hidden;
+  position:relative;
+}
+.snow{
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  overflow:hidden;
+  z-index:0;
+}
+.flake{
+  position:absolute;
+  top:-6vh;
+  color:#fff;
+  opacity:.8;
+  user-select:none;
+  animation:fall linear infinite;
+  text-shadow:0 0 6px rgba(255,255,255,.7);
+}
+@keyframes fall{
+  0%{transform:translate3d(0,-6vh,0) rotate(0)}
+  100%{transform:translate3d(var(--drift),106vh,0) rotate(360deg)}
+}
+header{position:relative;z-index:1;text-align:center;margin-bottom:12px}
+h1{
+  margin:0;
+  font-size:clamp(1.6rem,4vw,2.6rem);
+  letter-spacing:.04em;
+  background:linear-gradient(180deg,#fff 0%,var(--ice) 55%,var(--ice2) 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  text-shadow:0 2px 0 rgba(0,0,0,.0);
+  filter:drop-shadow(0 3px 6px rgba(0,0,0,.45));
+}
+header p{margin:4px 0 0;color:var(--muted);font-size:.95rem}
+main{
+  position:relative;
+  z-index:1;
+  display:flex;
+  gap:18px;
+  align-items:flex-start;
+  justify-content:center;
+  flex-wrap:wrap;
+}
+.panel{
+  background:var(--panel);
+  border:1px solid var(--edge);
+  border-radius:14px;
+  padding:14px;
+  width:180px;
+  box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.15);
+  backdrop-filter:blur(6px);
+}
+.panel h2{
+  margin:0 0 6px;
+  font-size:.72rem;
+  text-transform:uppercase;
+  letter-spacing:.14em;
+  color:var(--muted);
+}
+.stat{
+  font-size:1.6rem;
+  font-weight:700;
+  font-variant-numeric:tabular-nums;
+  margin-bottom:12px;
+  line-height:1.1;
+}
+.stat.small{font-size:1.15rem}
+#next{display:block;margin:4px auto 10px;background:rgba(0,0,0,.25);border-radius:8px}
+.board-wrap{
+  position:relative;
+  border-radius:12px;
+  padding:6px;
+  background:linear-gradient(180deg,rgba(191,233,255,.35),rgba(191,233,255,.12));
+  box-shadow:0 14px 40px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.25);
+}
+#board{
+  display:block;
+  border-radius:8px;
+  background:#0a2f57;
+}
+.overlay{
+  position:absolute;
+  inset:6px;
+  border-radius:8px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  gap:10px;
+  padding:20px;
+  background:rgba(4,22,46,.78);
+  backdrop-filter:blur(3px);
+}
+.overlay[hidden]{display:none}
+.overlay h3{margin:0;font-size:1.7rem}
+.overlay p{margin:0;color:var(--muted);font-size:.95rem;line-height:1.45}
+button{
+  font:inherit;
+  font-weight:700;
+  color:#04162e;
+  background:linear-gradient(180deg,#fff,var(--ice2));
+  border:0;
+  border-radius:999px;
+  padding:10px 22px;
+  cursor:pointer;
+  box-shadow:0 4px 0 #3e9fd6, 0 8px 18px rgba(0,0,0,.35);
+  transition:transform .08s ease, box-shadow .08s ease;
+}
+button:hover{transform:translateY(-1px)}
+button:active{transform:translateY(3px);box-shadow:0 1px 0 #3e9fd6, 0 4px 10px rgba(0,0,0,.35)}
+.keys{list-style:none;padding:0;margin:0;font-size:.85rem;line-height:1.75;color:var(--muted)}
+.keys kbd{
+  display:inline-block;
+  min-width:24px;
+  text-align:center;
+  font:inherit;
+  font-size:.78rem;
+  color:var(--text);
+  background:rgba(255,255,255,.1);
+  border:1px solid var(--edge);
+  border-bottom-width:2px;
+  border-radius:5px;
+  padding:0 5px;
+  margin-right:4px;
+}
+.penguin{
+  position:relative;
+  width:90px;
+  height:110px;
+  margin:6px auto 10px;
+  transform-origin:50% 100%;
+}
+.penguin.hop{animation:hop .5s ease}
+.penguin.flop{animation:flop .8s ease forwards}
+@keyframes hop{
+  0%,100%{transform:translateY(0) scale(1)}
+  35%{transform:translateY(-16px) scale(1.05,.95)}
+  60%{transform:translateY(0) scale(.96,1.04)}
+}
+@keyframes flop{
+  to{transform:rotate(90deg) translate(20px,10px)}
+}
+.p-body{
+  position:absolute;
+  left:10px;top:10px;
+  width:70px;height:96px;
+  background:#101a2b;
+  border-radius:50% 50% 46% 46% / 55% 55% 40% 40%;
+  box-shadow:inset -8px -6px 0 rgba(0,0,0,.35);
+}
+.p-belly{
+  position:absolute;
+  left:24px;top:38px;
+  width:42px;height:62px;
+  background:#f6fbff;
+  border-radius:50% 50% 46% 46% / 52% 52% 44% 44%;
+}
+.p-eye{
+  position:absolute;
+  top:26px;
+  width:12px;height:12px;
+  background:#fff;
+  border-radius:50%;
+}
+.p-eye::after{
+  content:"";
+  position:absolute;
+  left:4px;top:3px;
+  width:5px;height:5px;
+  background:#000;
+  border-radius:50%;
+  transition:transform .3s ease;
+}
+.p-eye.l{left:28px}
+.p-eye.r{left:50px}
+.penguin.over .p-eye::after{transform:scaleY(.3) translateY(4px)}
+.p-beak{
+  position:absolute;
+  left:38px;top:40px;
+  width:0;height:0;
+  border-left:7px solid transparent;
+  border-right:7px solid transparent;
+  border-top:10px solid #ff9f2e;
+}
+.p-wing{
+  position:absolute;
+  top:44px;
+  width:16px;height:44px;
+  background:#101a2b;
+  border-radius:50%;
+}
+.p-wing.l{left:2px;transform:rotate(14deg)}
+.p-wing.r{left:72px;transform:rotate(-14deg)}
+.penguin.hop .p-wing.l{animation:wingL .5s ease}
+.penguin.hop .p-wing.r{animation:wingR .5s ease}
+@keyframes wingL{50%{transform:rotate(-50deg)}}
+@keyframes wingR{50%{transform:rotate(50deg)}}
+.p-foot{
+  position:absolute;
+  top:100px;
+  width:22px;height:10px;
+  background:#ff9f2e;
+  border-radius:50% 50% 30% 30%;
+}
+.p-foot.l{left:22px;transform:rotate(-8deg)}
+.p-foot.r{left:46px;transform:rotate(8deg)}
+.bubble{
+  min-height:44px;
+  font-size:.88rem;
+  text-align:center;
+  background:rgba(255,255,255,.1);
+  border:1px solid var(--edge);
+  border-radius:10px;
+  padding:8px 10px;
+  color:var(--text);
+}
+.touch{
+  display:none;
+  grid-template-columns:repeat(5,1fr);
+  gap:8px;
+  margin-top:14px;
+  width:100%;
+  max-width:420px;
+}
+.touch button{padding:12px 0;font-size:1.2rem;border-radius:12px}
+footer{position:relative;z-index:1;margin-top:18px;color:var(--muted);font-size:.8rem;text-align:center}
+@media (max-width:760px){
+  .panel{width:calc(50% - 9px);min-width:150px}
+  .touch{display:grid}
+  #left{order:2}
+  #right{order:3}
+  .board-wrap{order:1}
+}
+@media (pointer:coarse){.touch{display:grid}}
+</style>
+</head>
+<body>
+<div class="snow" id="snow" aria-hidden="true"></div>
+
+<header>
+  <h1>Penguin Tetris</h1>
+  <p>Stack the ice, clear the lines, keep the colony warm.</p>
+</header>
+
+<main>
+  <aside class="panel" id="left">
+    <h2>Colony mascot</h2>
+    <div class="penguin" id="penguin" aria-hidden="true">
+      <div class="p-wing l"></div>
+      <div class="p-wing r"></div>
+      <div class="p-body"></div>
+      <div class="p-belly"></div>
+      <div class="p-eye l"></div>
+      <div class="p-eye r"></div>
+      <div class="p-beak"></div>
+      <div class="p-foot l"></div>
+      <div class="p-foot r"></div>
+    </div>
+    <div class="bubble" id="bubble" role="status" aria-live="polite">Press Enter to waddle in!</div>
+    <h2 style="margin-top:14px">Controls</h2>
+    <ul class="keys">
+      <li><kbd>←</kbd><kbd>→</kbd> Move</li>
+      <li><kbd>↑</kbd> Rotate</li>
+      <li><kbd>↓</kbd> Soft drop</li>
+      <li><kbd>Space</kbd> Hard drop</li>
+      <li><kbd>P</kbd> Pause</li>
+      <li><kbd>Enter</kbd> Start / restart</li>
+    </ul>
+  </aside>
+
+  <div class="board-wrap">
+    <canvas id="board" width="300" height="600" aria-label="Tetris playfield"></canvas>
+    <div class="overlay" id="overlay">
+      <h3 id="ov-title">Penguin Tetris</h3>
+      <p id="ov-text">Arrow keys move and rotate.<br>Clear lines to score. Don't let the ice reach the top!</p>
+      <button id="ov-btn" type="button">Start</button>
+    </div>
+  </div>
+
+  <aside class="panel" id="right">
+    <h2>Score</h2>
+    <div class="stat" id="score">0</div>
+    <h2>Best</h2>
+    <div class="stat small" id="best">0</div>
+    <h2>Lines</h2>
+    <div class="stat small" id="lines">0</div>
+    <h2>Level</h2>
+    <div class="stat small" id="level">1</div>
+    <h2>Next</h2>
+    <canvas id="next" width="120" height="120" aria-label="Next piece"></canvas>
+  </aside>
+
+  <div class="touch" id="touch" aria-label="Touch controls">
+    <button type="button" data-act="left" aria-label="Move left">◀</button>
+    <button type="button" data-act="rotate" aria-label="Rotate">⟳</button>
+    <button type="button" data-act="right" aria-label="Move right">▶</button>
+    <button type="button" data-act="down" aria-label="Soft drop">▼</button>
+    <button type="button" data-act="drop" aria-label="Hard drop">⤓</button>
+  </div>
+</main>
+
+<footer>Local HTML, CSS and JavaScript only. No network required.</footer>
+
+<script>
+(() => {
+  'use strict';
+
+  const COLS = 10;
+  const ROWS = 20;
+  const CELL = 30;
+  const PENGUIN_FLAG = 8;
+  const COLOR_MASK = 7;
+
+  const COLORS = [null, '#7fe3ff', '#ffe27a', '#c79bff', '#8cf0b8', '#ff9ea8', '#6fa8ff', '#ffbe7a'];
+
+  // Values 1-7 pick a colour; adding PENGUIN_FLAG marks the cell that carries a penguin.
+  const SHAPES = [
+    [[0, 0, 0, 0], [1, 9, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]],
+    [[10, 2], [2, 2]],
+    [[0, 11, 0], [3, 3, 3], [0, 0, 0]],
+    [[0, 4, 12], [4, 4, 0], [0, 0, 0]],
+    [[13, 5, 0], [0, 5, 5], [0, 0, 0]],
+    [[14, 0, 0], [6, 6, 6], [0, 0, 0]],
+    [[0, 0, 15], [7, 7, 7], [0, 0, 0]],
+  ];
+
+  const LINE_SCORES = [0, 100, 300, 500, 800];
+  const CLEAR_FLASH_MS = 220;
+  const BEST_KEY = 'penguin-tetris-best';
+
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const nextCanvas = document.getElementById('next');
+  const nextCtx = nextCanvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const ovTitle = document.getElementById('ov-title');
+  const ovText = document.getElementById('ov-text');
+  const ovBtn = document.getElementById('ov-btn');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const linesEl = document.getElementById('lines');
+  const levelEl = document.getElementById('level');
+  const penguinEl = document.getElementById('penguin');
+  const bubbleEl = document.getElementById('bubble');
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  function setupCanvas(c, context, w, h) {
+    c.width = w * dpr;
+    c.height = h * dpr;
+    c.style.width = w + 'px';
+    c.style.height = h + 'px';
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  setupCanvas(canvas, ctx, COLS * CELL, ROWS * CELL);
+  setupCanvas(nextCanvas, nextCtx, 120, 120);
+
+  let board;
+  let piece;
+  let nextPiece;
+  let bag = [];
+  let score = 0;
+  let lines = 0;
+  let level = 1;
+  let best = loadBest();
+  let state = 'ready';
+  let dropTimer = 0;
+  let lastTime = 0;
+  let clearingRows = [];
+  let clearTimer = 0;
+  let bubbleTimeout = 0;
+
+  function loadBest() {
+    try {
+      return Number(localStorage.getItem(BEST_KEY)) || 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  function saveBest() {
+    try {
+      localStorage.setItem(BEST_KEY, String(best));
+    } catch (e) {
+      // Storage may be unavailable (e.g. file:// in some browsers); best score is then session-only.
+    }
+  }
+
+  function emptyBoard() {
+    return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
+  }
+
+  function refillBag() {
+    const idx = [0, 1, 2, 3, 4, 5, 6];
+    for (let i = idx.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [idx[i], idx[j]] = [idx[j], idx[i]];
+    }
+    bag = idx;
+  }
+
+  function makePiece() {
+    if (bag.length === 0) refillBag();
+    const m = SHAPES[bag.pop()].map(row => row.slice());
+    return { m, x: Math.floor((COLS - m.length) / 2), y: 0 };
+  }
+
+  function rotateMatrix(m) {
+    const n = m.length;
+    const out = Array.from({ length: n }, () => new Array(n).fill(0));
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        out[x][n - 1 - y] = m[y][x];
+      }
+    }
+    return out;
+  }
+
+  function collides(m, px, py) {
+    for (let y = 0; y < m.length; y++) {
+      for (let x = 0; x < m[y].length; x++) {
+        if (!m[y][x]) continue;
+        const bx = px + x;
+        const by = py + y;
+        if (bx < 0 || bx >= COLS || by >= ROWS) return true;
+        if (by >= 0 && board[by][bx]) return true;
+      }
+    }
+    return false;
+  }
+
+  function dropInterval() {
+    return Math.max(70, 800 - (level - 1) * 65);
+  }
+
+  function updateHud() {
+    scoreEl.textContent = score;
+    bestEl.textContent = best;
+    linesEl.textContent = lines;
+    levelEl.textContent = level;
+  }
+
+  function say(msg, hold) {
+    bubbleEl.textContent = msg;
+    clearTimeout(bubbleTimeout);
+    if (hold) return;
+    bubbleTimeout = setTimeout(() => {
+      if (state === 'playing') bubbleEl.textContent = 'Keep stacking!';
+    }, 2200);
+  }
+
+  function hop() {
+    penguinEl.classList.remove('hop');
+    void penguinEl.offsetWidth;
+    penguinEl.classList.add('hop');
+  }
+
+  function showOverlay(title, text, btn) {
+    ovTitle.textContent = title;
+    ovText.innerHTML = text;
+    ovBtn.textContent = btn;
+    overlay.hidden = false;
+  }
+
+  function startGame() {
+    board = emptyBoard();
+    bag = [];
+    score = 0;
+    lines = 0;
+    level = 1;
+    clearingRows = [];
+    dropTimer = 0;
+    piece = makePiece();
+    nextPiece = makePiece();
+    state = 'playing';
+    overlay.hidden = true;
+    penguinEl.classList.remove('flop', 'over');
+    say('Waddle on!');
+    updateHud();
+    drawNext();
+  }
+
+  function pauseToggle() {
+    if (state === 'playing') {
+      state = 'paused';
+      showOverlay('Paused', 'The penguins are taking a fish break.', 'Resume');
+      say('Brrr… paused.', true);
+    } else if (state === 'paused') {
+      state = 'playing';
+      overlay.hidden = true;
+      say('Back on the ice!');
+    }
+  }
+
+  function gameOver() {
+    state = 'over';
+    if (score > best) {
+      best = score;
+      saveBest();
+      updateHud();
+    }
+    penguinEl.classList.add('flop', 'over');
+    say('Slipped on the ice…', true);
+    showOverlay(
+      'Game Over',
+      'The ice reached the top!<br>Score: <strong>' + score + '</strong> &middot; Lines: <strong>' + lines + '</strong>',
+      'Play again'
+    );
+  }
+
+  function move(dx) {
+    if (!collides(piece.m, piece.x + dx, piece.y)) {
+      piece.x += dx;
+      return true;
+    }
+    return false;
+  }
+
+  function rotate() {
+    const r = rotateMatrix(piece.m);
+    const kicks = [0, -1, 1, -2, 2];
+    for (const k of kicks) {
+      if (!collides(r, piece.x + k, piece.y)) {
+        piece.m = r;
+        piece.x += k;
+        return;
+      }
+    }
+    // Last resort: try nudging up one row (helps I-piece rotating against the floor).
+    if (!collides(r, piece.x, piece.y - 1)) {
+      piece.m = r;
+      piece.y -= 1;
+    }
+  }
+
+  function softDrop() {
+    if (!collides(piece.m, piece.x, piece.y + 1)) {
+      piece.y += 1;
+      score += 1;
+      updateHud();
+      dropTimer = 0;
+    } else {
+      lockPiece();
+    }
+  }
+
+  function hardDrop() {
+    let dist = 0;
+    while (!collides(piece.m, piece.x, piece.y + 1)) {
+      piece.y += 1;
+      dist++;
+    }
+    score += dist * 2;
+    updateHud();
+    lockPiece();
+  }
+
+  function ghostY() {
+    let y = piece.y;
+    while (!collides(piece.m, piece.x, y + 1)) y++;
+    return y;
+  }
+
+  function lockPiece() {
+    const m = piece.m;
+    for (let y = 0; y < m.length; y++) {
+      for (let x = 0; x < m[y].length; x++) {
+        if (!m[y][x]) continue;
+        const by = piece.y + y;
+        if (by < 0) {
+          gameOver();
+          return;
+        }
+        board[by][piece.x + x] = m[y][x];
+      }
+    }
+
+    const full = [];
+    for (let y = 0; y < ROWS; y++) {
+      if (board[y].every(v => v !== 0)) full.push(y);
+    }
+
+    if (full.length) {
+      clearingRows = full;
+      clearTimer = CLEAR_FLASH_MS;
+      state = 'clearing';
+      hop();
+      if (full.length === 4) say('TETRIS! Fish for everyone!');
+      else if (full.length >= 2) say('Brrr-illiant!');
+      else say('Nice stack!');
+    } else {
+      spawnNext();
+    }
+    dropTimer = 0;
+  }
+
+  function finishClear() {
+    const n = clearingRows.length;
+    board = board.filter((_, y) => !clearingRows.includes(y));
+    while (board.length < ROWS) board.unshift(new Array(COLS).fill(0));
+    clearingRows = [];
+    lines += n;
+    score += LINE_SCORES[n] * level;
+    level = Math.floor(lines / 10) + 1;
+    if (score > best) {
+      best = score;
+      saveBest();
+    }
+    updateHud();
+    state = 'playing';
+    spawnNext();
+  }
+
+  function spawnNext() {
+    piece = nextPiece;
+    nextPiece = makePiece();
+    drawNext();
+    if (collides(piece.m, piece.x, piece.y)) {
+      gameOver();
+    }
+  }
+
+  function tick(dt) {
+    if (state === 'clearing') {
+      clearTimer -= dt;
+      if (clearTimer <= 0) finishClear();
+      return;
+    }
+    if (state !== 'playing') return;
+    dropTimer += dt;
+    if (dropTimer >= dropInterval()) {
+      dropTimer = 0;
+      if (!collides(piece.m, piece.x, piece.y + 1)) {
+        piece.y += 1;
+      } else {
+        lockPiece();
+      }
+    }
+  }
+
+  function shade(hex, amt) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = Math.max(0, Math.min(255, (n >> 16) + amt));
+    const g = Math.max(0, Math.min(255, ((n >> 8) & 255) + amt));
+    const b = Math.max(0, Math.min(255, (n & 255) + amt));
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
+  }
+
+  function drawBlock(c, x, y, size, value, ghost) {
+    const color = COLORS[value & COLOR_MASK];
+    const px = x * size;
+    const py = y * size;
+    const pad = 1;
+
+    if (ghost) {
+      c.strokeStyle = 'rgba(191,233,255,.55)';
+      c.lineWidth = 2;
+      c.setLineDash([4, 3]);
+      c.strokeRect(px + 3, py + 3, size - 6, size - 6);
+      c.setLineDash([]);
+      return;
+    }
+
+    c.fillStyle = color;
+    c.fillRect(px + pad, py + pad, size - pad * 2, size - pad * 2);
+
+    c.fillStyle = shade(color, 60);
+    c.fillRect(px + pad, py + pad, size - pad * 2, 3);
+    c.fillRect(px + pad, py + pad, 3, size - pad * 2);
+
+    c.fillStyle = shade(color, -55);
+    c.fillRect(px + pad, py + size - pad - 3, size - pad * 2, 3);
+    c.fillRect(px + size - pad - 3, py + pad, 3, size - pad * 2);
+
+    c.fillStyle = 'rgba(255,255,255,.35)';
+    c.fillRect(px + 6, py + 6, size * 0.3, size * 0.16);
+
+    if (value & PENGUIN_FLAG) drawPenguin(c, px, py, size);
+  }
+
+  function drawPenguin(c, px, py, size) {
+    const cx = px + size / 2;
+    const cy = py + size / 2;
+    const s = size / 30;
+
+    c.save();
+    c.fillStyle = '#101a2b';
+    c.beginPath();
+    c.ellipse(cx, cy + 1 * s, 9 * s, 11 * s, 0, 0, Math.PI * 2);
+    c.fill();
+
+    c.fillStyle = '#f6fbff';
+    c.beginPath();
+    c.ellipse(cx, cy + 4 * s, 5.5 * s, 7 * s, 0, 0, Math.PI * 2);
+    c.fill();
+
+    c.fillStyle = '#fff';
+    c.beginPath();
+    c.arc(cx - 3.2 * s, cy - 4 * s, 2.2 * s, 0, Math.PI * 2);
+    c.arc(cx + 3.2 * s, cy - 4 * s, 2.2 * s, 0, Math.PI * 2);
+    c.fill();
+
+    c.fillStyle = '#000';
+    c.beginPath();
+    c.arc(cx - 2.6 * s, cy - 3.8 * s, 1 * s, 0, Math.PI * 2);
+    c.arc(cx + 3.8 * s, cy - 3.8 * s, 1 * s, 0, Math.PI * 2);
+    c.fill();
+
+    c.fillStyle = '#ff9f2e';
+    c.beginPath();
+    c.moveTo(cx - 2.2 * s, cy - 1.2 * s);
+    c.lineTo(cx + 2.2 * s, cy - 1.2 * s);
+    c.lineTo(cx, cy + 1.6 * s);
+    c.closePath();
+    c.fill();
+
+    c.beginPath();
+    c.ellipse(cx - 3.5 * s, cy + 11.5 * s, 3 * s, 1.4 * s, 0, 0, Math.PI * 2);
+    c.ellipse(cx + 3.5 * s, cy + 11.5 * s, 3 * s, 1.4 * s, 0, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+  }
+
+  function drawBoard() {
+    const w = COLS * CELL;
+    const h = ROWS * CELL;
+
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#0d3a68');
+    grad.addColorStop(1, '#061f3d');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = 'rgba(191,233,255,.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 1; x < COLS; x++) {
+      ctx.moveTo(x * CELL + 0.5, 0);
+      ctx.lineTo(x * CELL + 0.5, h);
+    }
+    for (let y = 1; y < ROWS; y++) {
+      ctx.moveTo(0, y * CELL + 0.5);
+      ctx.lineTo(w, y * CELL + 0.5);
+    }
+    ctx.stroke();
+
+    if (!board) return;
+
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        if (board[y][x]) drawBlock(ctx, x, y, CELL, board[y][x], false);
+      }
+    }
+
+    if (state === 'clearing') {
+      const t = clearTimer / CLEAR_FLASH_MS;
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.35 + 0.65 * t) + ')';
+      for (const y of clearingRows) ctx.fillRect(0, y * CELL, w, CELL);
+      return;
+    }
+
+    if (piece && (state === 'playing' || state === 'paused')) {
+      const gy = ghostY();
+      if (gy !== piece.y) {
+        for (let y = 0; y < piece.m.length; y++) {
+          for (let x = 0; x < piece.m[y].length; x++) {
+            if (piece.m[y][x] && gy + y >= 0) drawBlock(ctx, piece.x + x, gy + y, CELL, piece.m[y][x], true);
+          }
+        }
+      }
+      for (let y = 0; y < piece.m.length; y++) {
+        for (let x = 0; x < piece.m[y].length; x++) {
+          if (piece.m[y][x] && piece.y + y >= 0) drawBlock(ctx, piece.x + x, piece.y + y, CELL, piece.m[y][x], false);
+        }
+      }
+    }
+  }
+
+  function drawNext() {
+    nextCtx.clearRect(0, 0, 120, 120);
+    if (!nextPiece) return;
+    const m = nextPiece.m;
+    const size = 24;
+    let minX = 9, maxX = -1, minY = 9, maxY = -1;
+    for (let y = 0; y < m.length; y++) {
+      for (let x = 0; x < m[y].length; x++) {
+        if (!m[y][x]) continue;
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      }
+    }
+    const pw = (maxX - minX + 1) * size;
+    const ph = (maxY - minY + 1) * size;
+    const ox = (120 - pw) / 2;
+    const oy = (120 - ph) / 2;
+    nextCtx.save();
+    nextCtx.translate(ox - minX * size, oy - minY * size);
+    for (let y = 0; y < m.length; y++) {
+      for (let x = 0; x < m[y].length; x++) {
+        if (m[y][x]) drawBlock(nextCtx, x, y, size, m[y][x], false);
+      }
+    }
+    nextCtx.restore();
+  }
+
+  function frame(time) {
+    const dt = lastTime ? Math.min(time - lastTime, 100) : 0;
+    lastTime = time;
+    tick(dt);
+    drawBoard();
+    requestAnimationFrame(frame);
+  }
+
+  function action(act) {
+    if (act === 'start') {
+      if (state === 'paused') pauseToggle();
+      else if (state !== 'clearing') startGame();
+      return;
+    }
+    if (act === 'pause') {
+      pauseToggle();
+      return;
+    }
+    if (state !== 'playing') return;
+    switch (act) {
+      case 'left': move(-1); break;
+      case 'right': move(1); break;
+      case 'rotate': rotate(); break;
+      case 'down': softDrop(); break;
+      case 'drop': hardDrop(); break;
+      default: break;
+    }
+  }
+
+  const KEYMAP = {
+    ArrowLeft: 'left',
+    ArrowRight: 'right',
+    ArrowUp: 'rotate',
+    ArrowDown: 'down',
+    ' ': 'drop',
+    x: 'rotate',
+    X: 'rotate',
+    p: 'pause',
+    P: 'pause',
+    Escape: 'pause',
+    Enter: 'start',
+    r: 'start',
+    R: 'start',
+  };
+
+  document.addEventListener('keydown', e => {
+    const act = KEYMAP[e.key];
+    if (!act) return;
+    e.preventDefault();
+    if (e.repeat && (act === 'rotate' || act === 'drop' || act === 'start' || act === 'pause')) return;
+    action(act);
+  });
+
+  ovBtn.addEventListener('click', () => action('start'));
+
+  document.getElementById('touch').addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (btn) action(btn.dataset.act);
+  });
+
+  function makeSnow() {
+    const snow = document.getElementById('snow');
+    const glyphs = ['❄', '❅', '❆', '•'];
+    for (let i = 0; i < 40; i++) {
+      const f = document.createElement('span');
+      f.className = 'flake';
+      f.textContent = glyphs[i % glyphs.length];
+      f.style.left = Math.random() * 100 + 'vw';
+      f.style.fontSize = (8 + Math.random() * 14) + 'px';
+      f.style.opacity = (0.35 + Math.random() * 0.55).toFixed(2);
+      f.style.setProperty('--drift', (Math.random() * 80 - 40) + 'px');
+      f.style.animationDuration = (9 + Math.random() * 12) + 's';
+      f.style.animationDelay = (-Math.random() * 20) + 's';
+      snow.appendChild(f);
+    }
+  }
+
+  makeSnow();
+  updateHud();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
