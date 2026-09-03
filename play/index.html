@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐧 Penguin Tetris — Ice Block Puzzle</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root{
+    --ice-bg1:#0b1e3a; --ice-bg2:#123a6b; --ice-panel:#0f2a52cc;
+    --ice-line:#7fd4ff55; --text:#eaf6ff;
+  }
+  html,body{ height:100%; }
+  body{
+    font-family: "Trebuchet MS", "Segoe UI", Verdana, sans-serif;
+    background: radial-gradient(1200px 800px at 50% -10%, #2a6db5 0%, var(--ice-bg2) 30%, var(--ice-bg1) 70%, #060f22 100%);
+    color: var(--text);
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+    overflow-x:hidden;
+    user-select:none;
+  }
+  /* falling snow */
+  .snowflake{ position:fixed; top:-20px; pointer-events:none; z-index:0; animation: fall linear infinite; opacity:.9; }
+  @keyframes fall{ to{ transform: translateY(110vh) rotate(360deg); } }
+
+  header{ z-index:2; text-align:center; padding:18px 12px 8px; }
+  h1{ font-size: clamp(28px, 5vw, 44px); letter-spacing:1px; text-shadow:0 4px 0 #06203f, 0 0 24px #7fd4ff; }
+  h1 .sub{ display:block; font-size:14px; font-weight:normal; letter-spacing:3px; color:#aee3ff; margin-top:6px; text-transform:uppercase; }
+  .penguin-row{ font-size:30px; letter-spacing:8px; filter: drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
+  .penguin-row .bob{ display:inline-block; animation: bob 2s ease-in-out infinite; }
+  .penguin-row .bob:nth-child(2){ animation-delay:.3s } .penguin-row .bob:nth-child(3){ animation-delay:.6s }
+  .penguin-row .bob:nth-child(4){ animation-delay:.9s } .penguin-row .bob:nth-child(5){ animation-delay:1.2s }
+  @keyframes bob{ 0%,100%{ transform: translateY(0) rotate(-4deg);} 50%{ transform: translateY(-8px) rotate(4deg);} }
+
+  main{
+    z-index:2; display:flex; gap:16px; align-items:flex-start; justify-content:center;
+    padding:12px; flex-wrap:wrap; max-width:980px; width:100%;
+  }
+  .panel{
+    background: var(--ice-panel);
+    border:2px solid var(--ice-line);
+    border-radius:16px;
+    padding:14px 14px;
+    min-width:170px; width:190px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.2);
+    backdrop-filter: blur(6px);
+  }
+  .panel h2{ font-size:13px; letter-spacing:2px; color:#aee3ff; text-transform:uppercase; margin-bottom:8px; }
+  .stat{ background:#071a3a; border:1px solid #7fd4ff33; border-radius:10px; padding:8px 10px; margin-bottom:10px; }
+  .stat .label{ font-size:11px; letter-spacing:1.5px; color:#9ecbff; text-transform:uppercase; }
+  .stat .value{ font-size:26px; font-weight:800; line-height:1.1; }
+  #score{ color:#ffe082; } #level{ color:#80e8ff; } #lines{ color:#c5ffab; }
+  #high{ font-size:18px; color:#fff; }
+
+  #board-wrap{ position:relative; }
+  #board{
+    display:block; background: linear-gradient(#0a2347, #081a38);
+    border:3px solid #b8e7ff; border-radius:12px;
+    box-shadow: 0 0 0 4px #123a6b, 0 0 40px #4fc3ff66, 0 20px 60px rgba(0,0,0,.6);
+    touch-action:none;
+  }
+  /* grid overlay via CSS */
+  #overlay, #startOverlay{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(6,18,38,.82); border-radius:12px; text-align:center; padding:20px; gap:10px;
+  }
+  #overlay{ display:none; }
+  #overlay.show, #startOverlay.show{ display:flex; }
+  #startOverlay{ background:rgba(6,18,38,.72); }
+  .big-penguin{ font-size:64px; animation: bob 1.6s ease-in-out infinite; }
+  .overlay-title{ font-size:32px; font-weight:900; }
+  .overlay-sub{ color:#bcdfff; font-size:15px; line-height:1.5; }
+  button{
+    cursor:pointer; border:none; border-radius:10px; padding:10px 16px;
+    font-weight:800; font-size:15px; color:#06203f;
+    background: linear-gradient(#fff59d, #ffb74d);
+    box-shadow:0 4px 0 #9c5a00, 0 6px 16px rgba(0,0,0,.4);
+  }
+  button:active{ transform: translateY(3px); box-shadow:0 1px 0 #9c5a00; }
+  button.secondary{ background: linear-gradient(#b3e5fc,#4fc3ff); box-shadow:0 4px 0 #0d4a70, 0 6px 16px rgba(0,0,0,.4); }
+  button.secondary:active{ box-shadow:0 1px 0 #0d4a70; }
+  .btn-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .btn-row button{ flex:1; font-size:13px; padding:9px 8px; }
+
+  canvas.mini{ width:100%; height:90px; background:#071a3a; border-radius:10px; border:1px solid #7fd4ff33; }
+  #holdCanvas{ height:70px; }
+
+  .controls{ font-size:13px; line-height:1.9; color:#cfeaff; background:#071a3a; border-radius:10px; padding:10px 12px; border:1px solid #7fd4ff33; }
+  kbd{ background:#eaf6ff; color:#0b1e3a; border-radius:6px; padding:1px 7px; font-family:monospace; font-weight:800; font-size:12px; border-bottom:3px solid #8fb8d8; }
+
+  footer{ z-index:2; margin:10px 0 26px; text-align:center; color:#9ecbff; font-size:13px; }
+  .ice-floor{ font-size:26px; letter-spacing:2px; margin-top:6px; white-space:nowrap; overflow:hidden; }
+  .waddle{ display:inline-block; animation: waddle 3s linear infinite; }
+  @keyframes waddle{ 0%{ transform: translateX(-10px) rotate(-6deg);} 50%{ transform: translateX(10px) rotate(6deg);} 100%{ transform: translateX(-10px) rotate(-6deg);} }
+
+  /* touch buttons */
+  #touch{ display:none; gap:8px; justify-content:center; margin-top:12px; flex-wrap:wrap; }
+  #touch button{ font-size:20px; padding:12px 16px; min-width:58px; }
+  @media (max-width: 760px){
+    .panel{ width:100%; min-width:0; max-width:340px; order:2; }
+    #board-wrap{ order:1; }
+    #touch{ display:flex; }
+  }
+  #flash{ position:absolute; inset:0; pointer-events:none; border-radius:12px; opacity:0; background:#fff; transition:opacity .15s; }
+  .paused-badge{ position:absolute; top:10px; left:50%; transform:translateX(-50%); background:#ffb74d; color:#3a2200; font-weight:900; padding:4px 14px; border-radius:20px; display:none; font-size:13px; letter-spacing:1px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="penguin-row" aria-hidden="true"><span class="bob">🐧</span><span class="bob">❄️</span><span class="bob">🐧</span><span class="bob">❄️</span><span class="bob">🐧</span></div>
+  <h1>🐧 PENGUIN TETRIS <span class="sub">Ice Block Puzzle • Antarctica Edition</span></h1>
+</header>
+
+<main>
+  <div class="panel">
+    <h2>🧊 Expedition Stats</h2>
+    <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
+    <div class="stat"><div class="label">Level</div><div class="value" id="level">1</div></div>
+    <div class="stat"><div class="label">Lines (fish 🐟)</div><div class="value" id="lines">0</div></div>
+    <div class="stat"><div class="label">Best Snowy Score</div><div class="value" id="high">0</div></div>
+    <div class="btn-row">
+      <button id="startBtn" class="secondary">▶ Start</button>
+      <button id="pauseBtn" class="secondary">⏸ Pause</button>
+    </div>
+    <div style="height:8px"></div>
+    <div class="btn-row">
+      <button id="restartBtn">↻ Restart</button>
+      <button id="muteBtn" class="secondary">🔊</button>
+    </div>
+  </div>
+
+  <div id="board-wrap">
+    <canvas id="board" width="300" height="600"></canvas>
+    <div id="flash"></div>
+    <div class="paused-badge" id="pausedBadge">⏸ PAUSED</div>
+    <div id="startOverlay" class="show">
+      <div class="big-penguin">🐧🧊🐟</div>
+      <div class="overlay-title">Ready to Slide?</div>
+      <div class="overlay-sub">Stack the ice blocks.<br>Clear lines to feed the penguins fish!<br><br><kbd>◀</kbd> <kbd>▶</kbd> move &nbsp; <kbd>▼</kbd> soft drop<br><kbd>▲</kbd> rotate &nbsp; <kbd>Space</kbd> hard drop<br><kbd>P</kbd> pause &nbsp; <kbd>C</kbd> hold &nbsp; <kbd>R</kbd> restart</div>
+      <button id="playBtn">🐧 Start Sliding</button>
+    </div>
+    <div id="overlay">
+      <div class="big-penguin">🥶🐧</div>
+      <div class="overlay-title">Game Over!</div>
+      <div class="overlay-sub" id="finalStats">Score: 0</div>
+      <button id="againBtn">↻ Play Again (R)</button>
+    </div>
+    <div id="touch">
+      <button data-k="left">◀</button>
+      <button data-k="rotate">⟳</button>
+      <button data-k="right">▶</button>
+      <button data-k="down">▼</button>
+      <button data-k="drop">⤓</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>⏭ Next Ice Block</h2>
+    <canvas class="mini" id="nextCanvas" width="160" height="90"></canvas>
+    <div style="height:10px"></div>
+    <h2>🐧 Hold (C)</h2>
+    <canvas class="mini" id="holdCanvas" width="160" height="70"></canvas>
+    <div style="height:10px"></div>
+    <h2>🎮 How to Play</h2>
+    <div class="controls">
+      <div><kbd>◀</kbd><kbd>▶</kbd> slide block</div>
+      <div><kbd>▼</kbd> slide down faster</div>
+      <div><kbd>▲</kbd> / <kbd>X</kbd> rotate ↻</div>
+      <div><kbd>Z</kbd> rotate ↺</div>
+      <div><kbd>Space</kbd> hard drop ⤓</div>
+      <div><kbd>C</kbd> hold penguin block</div>
+      <div><kbd>P</kbd> pause &nbsp; <kbd>R</kbd> restart</div>
+      <div style="margin-top:6px">Clear lines = 🐟 fish!<br>1 line 100 • 2 lines 300<br>3 lines 500 • 4 lines 800<br>× level. Level up every 10 🐟.</div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div>Made with ❄️ for penguins • No network needed • Just open <b>index.html</b> • Arrow keys to play</div>
+  <div class="ice-floor"><span class="waddle">🐧</span> 🧊🧊🧊 ❄️ 🧊🧊🧊 <span class="waddle">🐧</span> 🧊🧊🧊 ❄️ 🧊🧊🧊 <span class="waddle">🐧</span></div>
+</footer>
+
+<script>
+(function(){
+"use strict";
+var COLS=10, ROWS=20, CELL=30;
+var canvas=document.getElementById('board');
+var ctx=canvas.getContext('2d');
+var nextCanvas=document.getElementById('nextCanvas');
+var nctx=nextCanvas.getContext('2d');
+var holdCanvas=document.getElementById('holdCanvas');
+var hctx=holdCanvas.getContext('2d');
+
+var scoreEl=document.getElementById('score'),
+    levelEl=document.getElementById('level'),
+    linesEl=document.getElementById('lines'),
+    highEl=document.getElementById('high'),
+    overlay=document.getElementById('overlay'),
+    startOverlay=document.getElementById('startOverlay'),
+    finalStats=document.getElementById('finalStats'),
+    flash=document.getElementById('flash'),
+    pausedBadge=document.getElementById('pausedBadge');
+
+var SHAPES={
+  I:{m:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], c:'#3fd2f2', dk:'#0e8fb5', lt:'#c8f7ff', name:'Ice Slide'},
+  O:{m:[[1,1],[1,1]], c:'#ffd54f', dk:'#c19100', lt:'#fff8d6', name:'Penguin Egg'},
+  T:{m:[[0,1,0],[1,1,1],[0,0,0]], c:'#c07df0', dk:'#7b2fc0', lt:'#f3dcff', name:'Aurora'},
+  S:{m:[[0,1,1],[1,1,0],[0,0,0]], c:'#6fe3a1', dk:'#1f9d5c', lt:'#d8ffea', name:'Mint Glacier'},
+  Z:{m:[[1,1,0],[0,1,1],[0,0,0]], c:'#ff8a9e', dk:'#c13a55', lt:'#ffe0e7', name:'Berry Ice'},
+  J:{m:[[1,0,0],[1,1,1],[0,0,0]], c:'#5aa9ff', dk:'#1f5fc4', lt:'#d6eaff', name:'Deep Dive'},
+  L:{m:[[0,0,1],[1,1,1],[0,0,0]], c:'#ffb066', dk:'#c46a1b', lt:'#ffedd8', name:'Sunset Fish'}
+};
+var TYPES=['I','O','T','S','Z','J','L'];
+
+var board, current, nextQueue, holdType, canHold;
+var score, lines, level, dropInterval, dropCounter, lastTime;
+var gameOver, paused, started, muted=false;
+var high=0;
+try{ high=parseInt(localStorage.getItem('penguinTetrisHigh')||'0',10)||0; }catch(e){}
+highEl.textContent=high;
+
+// --- audio (local, WebAudio beeps, no network) ---
+var AC=null;
+function beep(freq,dur,type,vol){
+  if(muted) return;
+  try{
+    if(!AC) AC=new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended') AC.resume();
+    var o=AC.createOscillator(), g=AC.createGain();
+    o.type=type||'square'; o.frequency.value=freq;
+    g.gain.value=vol||0.06;
+    o.connect(g); g.connect(AC.destination);
+    o.start(); g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime+dur);
+    o.stop(AC.currentTime+dur);
+  }catch(e){}
+}
+function sndMove(){beep(220,0.05,'square',0.03);}
+function sndRotate(){beep(440,0.06,'square',0.04);}
+function sndLock(){beep(140,0.08,'triangle',0.07);}
+function sndClear(n){var f=[523,659,784,1046]; for(var i=0;i<n;i++)(function(i){setTimeout(function(){beep(f[i],0.12,'square',0.06);},i*90);})(i);}
+function sndGameOver(){beep(300,0.2,'sawtooth',0.06); setTimeout(function(){beep(200,0.25,'sawtooth',0.06);},200); setTimeout(function(){beep(120,0.4,'sawtooth',0.06);},450);}
+function sndLevel(){beep(880,0.15,'sine',0.07);}
+
+// --- game logic ---
+function emptyBoard(){ var b=[]; for(var y=0;y<ROWS;y++){ b.push(new Array(COLS).fill(0)); } return b; }
+function newBag(){
+  var bag=TYPES.slice();
+  for(var i=bag.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=bag[i]; bag[i]=bag[j]; bag[j]=t; }
+  return bag;
+}
+function refill(){ while(nextQueue.length<7){ nextQueue=nextQueue.concat(newBag()); } }
+function spawn(){
+  refill();
+  var type=nextQueue.shift();
+  var shape=SHAPES[type];
+  var m=shape.m.map(function(r){return r.slice();});
+  current={type:type, matrix:m, x:3, y:type==='I'?-1:0};
+  if(type==='O'){ current.x=4; }
+  canHold=true;
+  if(collides(board,current.matrix,current.x,current.y)){ doGameOver(); }
+  drawNext();
+}
+function collides(b,matrix,px,py){
+  for(var y=0;y<matrix.length;y++) for(var x=0;x<matrix[y].length;x++){
+    if(!matrix[y][x]) continue;
+    var nx=px+x, ny=py+y;
+    if(nx<0||nx>=COLS||ny>=ROWS) return true;
+    if(ny>=0 && b[ny][nx]) return true;
+  }
+  return false;
+}
+function rotate(matrix,dir){
+  var N=matrix.length, res=[];
+  for(var y=0;y<N;y++){ res.push(new Array(N).fill(0)); }
+  for(var y2=0;y2<N;y2++) for(var x2=0;x2<N;x2++){
+    if(dir>0) res[x2][N-1-y2]=matrix[y2][x2];
+    else res[N-1-x2][y2]=matrix[y2][x2];
+  }
+  return res;
+}
+function tryRotate(dir){
+  if(!current||gameOver||paused||!started) return;
+  var old=current.matrix;
+  var r=rotate(old,dir);
+  // wall kicks: try offsets
+  var kicks=[[0,0],[-1,0],[1,0],[0,-1],[-2,0],[2,0],[-1,-1],[1,-1]];
+  for(var i=0;i<kicks.length;i++){
+    var nx=current.x+kicks[i][0], ny=current.y+kicks[i][1];
+    if(!collides(board,r,nx,ny)){ current.matrix=r; current.x=nx; current.y=ny; sndRotate(); return; }
+  }
+}
+function move(dx){
+  if(!current||gameOver||paused||!started) return;
+  if(!collides(board,current.matrix,current.x+dx,current.y)){ current.x+=dx; sndMove(); }
+}
+function softDrop(){
+  if(!current||gameOver||paused||!started) return;
+  if(!collides(board,current.matrix,current.x,current.y+1)){ current.y++; score+=1; updateHUD(); }
+  else lock();
+}
+function hardDrop(){
+  if(!current||gameOver||paused||!started) return;
+  var d=0;
+  while(!collides(board,current.matrix,current.x,current.y+1)){ current.y++; d++; }
+  score+=d*2; lock(); beep(600,0.08,'square',0.05);
+}
+function lock(){
+  var m=current.matrix;
+  for(var y=0;y<m.length;y++) for(var x=0;x<m[y].length;x++){
+    if(m[y][x]){ var by=current.y+y, bx=current.x+x; if(by>=0) board[by][bx]=current.type; }
+  }
+  sndLock();
+  clearLines();
+  spawn();
+}
+function clearLines(){
+  var cleared=0;
+  for(var y=ROWS-1;y>=0;y--){
+    var full=true;
+    for(var x=0;x<COLS;x++) if(!board[y][x]){ full=false; break; }
+    if(full){ board.splice(y,1); board.unshift(new Array(COLS).fill(0)); cleared++; y++; }
+  }
+  if(cleared>0){
+    var pts=[0,100,300,500,800][cleared]||800;
+    score+=pts*level;
+    lines+=cleared;
+    var newLevel=Math.floor(lines/10)+1;
+    if(newLevel>level){ level=newLevel; dropInterval=Math.max(80, Math.pow(0.82,level-1)*1000); sndLevel(); }
+    sndClear(cleared);
+    flash.style.opacity='0.55';
+    setTimeout(function(){ flash.style.opacity='0'; },140);
+    if(score>high){ high=score; highEl.textContent=high; try{localStorage.setItem('penguinTetrisHigh',String(high));}catch(e){} }
+  }
+  updateHUD();
+}
+function doGameOver(){
+  gameOver=true;
+  finalStats.innerHTML='🐟 Fish caught (lines): <b>'+lines+'</b><br>❄️ Level: <b>'+level+'</b><br>⭐ Score: <b>'+score+'</b><br>'+(score>=high && score>0 ? '🏆 New best snowy score!' : '🏆 Best: '+high);
+  overlay.classList.add('show');
+  sndGameOver();
+}
+function updateHUD(){ scoreEl.textContent=score; levelEl.textContent=level; linesEl.textContent=lines; }
+
+// --- drawing ---
+function drawCell(g,px,py,type,ghost){
+  var s=SHAPES[type]; if(!s) return;
+  var x=px*CELL, y=py*CELL, pad=ghost?7:1;
+  g.save();
+  g.globalAlpha=ghost?0.28:1;
+  // base
+  g.fillStyle=ghost?'transparent':s.dk;
+  roundRect(g,x,y,CELL,CELL,7); g.fill();
+  if(!ghost){
+    g.fillStyle=s.c;
+    roundRect(g,x+pad,y+pad,CELL-pad*2,CELL-pad*2,6); g.fill();
+    // glossy highlight
+    g.fillStyle=s.lt; g.globalAlpha=0.85;
+    roundRect(g,x+4,y+4,CELL-8,9,4); g.fill();
+    g.globalAlpha=1;
+    // snow sparkle
+    g.fillStyle='rgba(255,255,255,.9)';
+    g.fillRect(x+CELL-9,y+6,3,3);
+    g.fillRect(x+6,y+CELL-9,2,2);
+    // penguin face on O blocks, fish on I blocks for charm
+    if(type==='O'){ g.font='16px serif'; g.fillText('🐧',x+5,y+22); }
+    if(type==='I'){ g.font='11px serif'; g.fillText('❄',x+9,y+20); }
+  } else {
+    g.strokeStyle=s.c; g.lineWidth=2;
+    roundRect(g,x+3,y+3,CELL-6,CELL-6,6); g.stroke();
+  }
+  g.restore();
+}
+function roundRect(g,x,y,w,h,r){
+  g.beginPath();
+  g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r);
+  g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath();
+}
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // ice background lines
+  ctx.strokeStyle='rgba(127,212,255,.12)'; ctx.lineWidth=1;
+  ctx.beginPath();
+  for(var x=1;x<COLS;x++){ ctx.moveTo(x*CELL+.5,0); ctx.lineTo(x*CELL+.5,ROWS*CELL); }
+  for(var y=1;y<ROWS;y++){ ctx.moveTo(0,y*CELL+.5); ctx.lineTo(COLS*CELL,y*CELL+.5); }
+  ctx.stroke();
+  // settled
+  for(var by=0;by<ROWS;by++) for(var bx=0;bx<COLS;bx++){
+    if(board[by][bx]) drawCell(ctx,bx,by,board[by][bx],false);
+  }
+  if(current && started && !gameOver){
+    // ghost
+    var gy=current.y;
+    while(!collides(board,current.matrix,current.x,gy+1)) gy++;
+    if(gy!==current.y){
+      for(var yy=0;yy<current.matrix.length;yy++) for(var xx=0;xx<current.matrix[yy].length;xx++){
+        if(current.matrix[yy][xx] && gy+yy>=0) drawCell(ctx,current.x+xx,gy+yy,current.type,true);
+      }
+    }
+    for(var y2=0;y2<current.matrix.length;y2++) for(var x2=0;x2<current.matrix[y2].length;x2++){
+      if(current.matrix[y2][x2] && current.y+y2>=0) drawCell(ctx,current.x+x2,current.y+y2,current.type,false);
+    }
+  }
+  // frozen border vignette
+  ctx.strokeStyle='rgba(200,240,255,.25)'; ctx.lineWidth=6;
+  ctx.strokeRect(1,1,COLS*CELL-2,ROWS*CELL-2);
+}
+function drawMini(g,type,maxW){
+  g.clearRect(0,0,g.canvas.width,g.canvas.height);
+  if(!type){ g.fillStyle='#7fa8d0'; g.font='13px sans-serif'; g.fillText('empty',20,40); return; }
+  var m=SHAPES[type].m;
+  // trim empty rows/cols
+  var rows=m.filter(function(r){return r.some(Boolean);});
+  var w=rows[0].length, h=rows.length;
+  var size=Math.min(28, Math.min((g.canvas.width-20)/w,(g.canvas.height-20)/h));
+  var ox=(g.canvas.width-w*size)/2, oy=(g.canvas.height-h*size)/2;
+  for(var y=0;y<h;y++) for(var x=0;x<w;x++){
+    if(rows[y][x]){
+      var s=SHAPES[type];
+      g.fillStyle=s.dk; g.fillRect(ox+x*size,oy+y*size,size,size);
+      g.fillStyle=s.c; g.fillRect(ox+x*size+2,oy+y*size+2,size-4,size-4);
+      g.fillStyle=s.lt; g.fillRect(ox+x*size+3,oy+y*size+3,size-6,7);
+    }
+  }
+}
+function drawNext(){ drawMini(nctx,nextQueue[0]); drawMini(hctx,holdType); }
+
+// --- flow ---
+function reset(){
+  board=emptyBoard(); nextQueue=[]; holdType=null; canHold=true;
+  score=0; lines=0; level=1; dropInterval=1000; dropCounter=0; lastTime=0;
+  gameOver=false; paused=false; started=true;
+  overlay.classList.remove('show'); startOverlay.classList.remove('show');
+  pausedBadge.style.display='none';
+  updateHUD(); spawn(); updateHUD();
+}
+function togglePause(){
+  if(!started||gameOver) return;
+  paused=!paused;
+  pausedBadge.style.display=paused?'block':'none';
+  document.getElementById('pauseBtn').textContent=paused?'▶ Resume':'⏸ Pause';
+}
+function hold(){
+  if(!current||!canHold||paused||!started||gameOver) return;
+  beep(500,0.07,'sine',0.05);
+  var cur=current.type;
+  if(!holdType){ holdType=cur; spawn(); canHold=false; }
+  else { var tmp=holdType; holdType=cur; var shape=SHAPES[tmp];
+    current={type:tmp, matrix:shape.m.map(function(r){return r.slice();}), x:3, y:tmp==='I'?-1:0};
+    if(tmp==='O') current.x=4;
+    canHold=false;
+    if(collides(board,current.matrix,current.x,current.y)) doGameOver();
+  }
+  drawNext();
+}
+
+// loop
+function update(time){
+  requestAnimationFrame(update);
+  if(!started||gameOver||paused){ lastTime=time; return; }
+  if(!lastTime) lastTime=time;
+  var dt=time-lastTime; lastTime=time;
+  // down key held = faster: handled by key repeat + gravity here
+  dropCounter+=dt;
+  if(dropCounter>dropInterval){ dropCounter=0;
+    if(!collides(board,current.matrix,current.x,current.y+1)) current.y++;
+    else lock();
+  }
+  draw();
+}
+
+// input
+document.addEventListener('keydown',function(e){
+  var k=e.key;
+  if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].indexOf(k)>=0) e.preventDefault();
+  if(k==='r'||k==='R'){ reset(); return; }
+  if(k==='p'||k==='P'||k==='Escape'){ togglePause(); return; }
+  if(k==='Enter'){ if(!started||gameOver){ reset(); } else if(startOverlay.classList.contains('show')){ reset(); } return; }
+  if(!started){
+    if(k===' '||k==='ArrowDown') reset();
+    return;
+  }
+  if(gameOver) return;
+  if(paused) return;
+  switch(k){
+    case 'ArrowLeft': move(-1); break;
+    case 'ArrowRight': move(1); break;
+    case 'ArrowDown': softDrop(); dropCounter=0; break;
+    case 'ArrowUp': case 'x': case 'X': tryRotate(1); break;
+    case 'z': case 'Z': tryRotate(-1); break;
+    case ' ': hardDrop(); dropCounter=0; break;
+    case 'c': case 'C': hold(); break;
+  }
+  draw();
+});
+
+// buttons
+document.getElementById('startBtn').onclick=function(){ if(gameOver||!started) reset(); else { startOverlay.classList.remove('show'); started=true; } if(paused) togglePause(); };
+document.getElementById('playBtn').onclick=function(){ reset(); };
+document.getElementById('againBtn').onclick=function(){ reset(); };
+document.getElementById('restartBtn').onclick=function(){ reset(); };
+document.getElementById('pauseBtn').onclick=function(){ togglePause(); };
+document.getElementById('muteBtn').onclick=function(e){ muted=!muted; e.target.textContent=muted?'🔇':'🔊'; };
+
+// touch
+var touchMap={left:function(){move(-1);},right:function(){move(1);},down:function(){softDrop();},rotate:function(){tryRotate(1);},drop:function(){hardDrop();}};
+document.querySelectorAll('#touch button').forEach(function(b){
+  b.addEventListener('click',function(){ var f=touchMap[b.getAttribute('data-k')]; if(f) f(); draw(); });
+});
+
+// snow
+(function snow(){
+  var emojis=['❄','❅','❆','✻'];
+  for(var i=0;i<28;i++){
+    var s=document.createElement('div');
+    s.className='snowflake';
+    s.textContent=emojis[Math.floor(Math.random()*emojis.length)];
+    s.style.left=(Math.random()*100)+'vw';
+    s.style.fontSize=(8+Math.random()*18)+'px';
+    s.style.animationDuration=(5+Math.random()*9)+'s';
+    s.style.animationDelay=(-Math.random()*12)+'s';
+    s.style.opacity=(0.35+Math.random()*0.6);
+    document.body.appendChild(s);
+  }
+})();
+
+// init idle board
+board=emptyBoard(); nextQueue=newBag(); score=0; lines=0; level=1; dropInterval=1000;
+started=false; gameOver=false; paused=false;
+updateHUD(); draw(); drawMini(nctx,'I'); drawMini(hctx,null);
+requestAnimationFrame(update);
+})();
+</script>
+</body>
+</html>
