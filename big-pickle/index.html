@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Penguin Tetris</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0b1a2e;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+    color: #c8e6ff;
+    user-select: none;
+  }
+
+  .snow-bg {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+  }
+
+  #game-wrapper {
+    position: relative; z-index: 1;
+    display: flex; gap: 24px; align-items: flex-start;
+  }
+
+  .panel {
+    background: rgba(10, 30, 60, 0.85);
+    border: 2px solid #2a5a8a;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 0 30px rgba(50, 150, 255, 0.15);
+  }
+
+  #board-panel { padding: 10px; }
+
+  #board {
+    display: block;
+    border: 2px solid #3a7ab5;
+    border-radius: 4px;
+    background: #06101f;
+  }
+
+  #side-panel {
+    width: 180px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+
+  .side-title {
+    font-size: 13px; text-transform: uppercase; letter-spacing: 2px;
+    color: #6ab0e8; margin-bottom: 6px; text-align: center;
+  }
+
+  #next-canvas {
+    display: block; margin: 0 auto;
+    border-radius: 4px;
+    background: #06101f;
+    border: 1px solid #2a5a8a;
+  }
+
+  .score-val {
+    font-size: 28px; font-weight: bold; text-align: center;
+    color: #7dd3fc; text-shadow: 0 0 8px rgba(100, 200, 255, 0.4);
+  }
+
+  .penguin-box {
+    text-align: center; font-size: 56px; line-height: 1.1;
+    transition: transform 0.2s;
+  }
+
+  .penguin-box.happy { animation: bounce 0.4s ease; }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+  }
+
+  #overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    background: rgba(5, 15, 30, 0.88); border-radius: 14px;
+    z-index: 10; transition: opacity 0.3s;
+  }
+
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+
+  #overlay h1 {
+    font-size: 36px; color: #7dd3fc; margin-bottom: 8px;
+    text-shadow: 0 0 12px rgba(100, 200, 255, 0.5);
+  }
+
+  #overlay p { font-size: 16px; color: #8ab4d8; margin-bottom: 6px; }
+
+  .overlay-penguin { font-size: 72px; margin-bottom: 12px; }
+
+  #overlay .start-hint {
+    margin-top: 14px; font-size: 14px; color: #5a9ac0;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; } 50% { opacity: 1; }
+  }
+
+  .level-bar {
+    width: 100%; height: 6px; background: #122a42;
+    border-radius: 3px; overflow: hidden; margin-top: 4px;
+  }
+  .level-fill {
+    height: 100%; background: linear-gradient(90deg, #2a7ab5, #7dd3fc);
+    transition: width 0.3s;
+  }
+
+  .controls-hint {
+    font-size: 11px; color: #4a7a9a; text-align: center; line-height: 1.5;
+    margin-top: 4px;
+  }
+
+  .top-bar {
+    position: fixed; top: 0; left: 0; width: 100%;
+    text-align: center; padding: 10px;
+    font-size: 22px; font-weight: bold; letter-spacing: 3px;
+    color: #7dd3fc; z-index: 2;
+    text-shadow: 0 0 10px rgba(100, 200, 255, 0.4);
+    background: linear-gradient(180deg, rgba(6, 16, 31, 0.9), transparent);
+  }
+</style>
+</head>
+<body>
+
+<div class="snow-bg" id="snow-bg"></div>
+<div class="top-bar">PENGUIN TETRIS</div>
+
+<div id="game-wrapper">
+  <div class="panel" id="board-panel" style="position:relative;">
+    <canvas id="board" width="300" height="600"></canvas>
+    <div id="overlay">
+      <div class="overlay-penguin" id="overlay-penguin"></div>
+      <h1 id="overlay-title">PENGUIN TETRIS</h1>
+      <p id="overlay-msg">Stack ice blocks with the penguin!</p>
+      <p class="start-hint" id="overlay-hint">Press ENTER or SPACE to start</p>
+    </div>
+  </div>
+
+  <div id="side-panel">
+    <div class="panel">
+      <div class="side-title">Next Ice</div>
+      <canvas id="next-canvas" width="120" height="120"></canvas>
+    </div>
+    <div class="panel">
+      <div class="side-title">Score</div>
+      <div class="score-val" id="score-val">0</div>
+    </div>
+    <div class="panel">
+      <div class="side-title">Level</div>
+      <div class="score-val" id="level-val" style="font-size:22px;">1</div>
+      <div class="level-bar"><div class="level-fill" id="level-fill" style="width:0%"></div></div>
+    </div>
+    <div class="panel">
+      <div class="side-title">Lines</div>
+      <div class="score-val" id="lines-val" style="font-size:22px;">0</div>
+    </div>
+    <div class="panel">
+      <div class="penguin-box" id="penguin-box">\u{1F427}</div>
+    </div>
+    <div class="controls-hint">
+      &larr; &rarr; Move &nbsp;|&nbsp; &uarr; Rotate<br>
+      &darr; Soft drop &nbsp;|&nbsp; Space: Hard drop
+    </div>
+  </div>
+</div>
+
+<script>
+const COLS = 10, ROWS = 20, CELL = 30;
+const boardCanvas = document.getElementById('board');
+const boardCtx = boardCanvas.getContext('2d');
+const nextCanvas = document.getElementById('next-canvas');
+const nextCtx = nextCanvas.getContext('2d');
+
+const ICE_COLORS = [
+  null,
+  '#4fc3f7', '#1565c0', '#00bcd4', '#26c6da',
+  '#0288d1', '#7e57c2', '#ff7043',
+];
+
+const SHAPES = [
+  [],
+  [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  [[2,2],[2,2]],
+  [[0,3,0],[3,3,3],[0,0,0]],
+  [[0,4,4],[4,4,0],[0,0,0]],
+  [[5,5,0],[0,5,5],[0,0,0]],
+  [[6,0,0],[6,6,6],[0,0,0]],
+  [[0,0,7],[7,7,7],[0,0,0]],
+];
+
+let board, score, lines, level, linesForLevel;
+let curPiece, curX, curY, curType, nextType;
+let state; // 'idle' | 'playing' | 'clearing' | 'over'
+let dropInterval, dropAccum;
+let animFrame = 0, clearTimer = 0;
+let lastTime = 0;
+let animatingLines = [];
+
+function createBoard() {
+  return Array.from({length: ROWS}, () => new Array(COLS).fill(0));
+}
+
+function randomType() {
+  return Math.floor(Math.random() * 7) + 1;
+}
+
+function rotate(shape) {
+  const N = shape.length;
+  const r = Array.from({length: N}, () => new Array(N).fill(0));
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++)
+      r[x][N - 1 - y] = shape[y][x];
+  return r;
+}
+
+function collides(shape, px, py) {
+  for (let y = 0; y < shape.length; y++)
+    for (let x = 0; x < shape[y].length; x++)
+      if (shape[y][x]) {
+        const nx = px + x, ny = py + y;
+        if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
+        if (ny >= 0 && board[ny][nx]) return true;
+      }
+  return false;
+}
+
+function lock() {
+  for (let y = 0; y < curPiece.length; y++)
+    for (let x = 0; x < curPiece[y].length; x++)
+      if (curPiece[y][x]) {
+        const by = curY + y;
+        if (by >= 0) board[by][curX + x] = curPiece[y][x];
+      }
+  animatingLines = [];
+  for (let y = ROWS - 1; y >= 0; y--)
+    if (board[y].every(c => c !== 0)) animatingLines.push(y);
+  if (animatingLines.length > 0) {
+    state = 'clearing';
+    clearTimer = 300;
+  } else {
+    spawnPiece();
+  }
+}
+
+function finishClear() {
+  animatingLines.sort((a, b) => b - a);
+  for (const r of animatingLines) {
+    board.splice(r, 1);
+    board.unshift(new Array(COLS).fill(0));
+  }
+  const pts = [0, 100, 300, 500, 800];
+  const cleared = animatingLines.length;
+  score += pts[cleared] * level;
+  lines += cleared;
+  linesForLevel += cleared;
+  if (linesForLevel >= 10) {
+    linesForLevel -= 10;
+    level++;
+    dropInterval = Math.max(80, 800 - (level - 1) * 70);
+  }
+  animatingLines = [];
+  state = 'playing';
+  updateUI();
+  penguinBounce();
+  spawnPiece();
+}
+
+function spawnPiece() {
+  curType = nextType;
+  nextType = randomType();
+  curPiece = SHAPES[curType].map(r => [...r]);
+  curX = Math.floor((COLS - curPiece[0].length) / 2);
+  curY = -1;
+  if (collides(curPiece, curX, curY)) {
+    endGame();
+    return;
+  }
+  drawNext();
+}
+
+function ghostY() {
+  let gy = curY;
+  while (!collides(curPiece, curX, gy + 1)) gy++;
+  return gy;
+}
+
+function hardDrop() {
+  let dropped = 0;
+  while (!collides(curPiece, curX, curY + 1)) { curY++; dropped++; }
+  score += dropped * 2;
+  lock();
+  updateUI();
+}
+
+function darken(hex, amt) {
+  const r = Math.floor(parseInt(hex.slice(1,3), 16) * (1 - amt));
+  const g = Math.floor(parseInt(hex.slice(3,5), 16) * (1 - amt));
+  const b = Math.floor(parseInt(hex.slice(5,7), 16) * (1 - amt));
+  return `rgb(${r},${g},${b})`;
+}
+
+function drawCell(ctx, x, y, colorIdx, sz, ghost) {
+  if (!colorIdx) return;
+  const px = x * sz, py = y * sz;
+  if (ghost) {
+    ctx.strokeStyle = ICE_COLORS[colorIdx];
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.35;
+    ctx.strokeRect(px + 1, py + 1, sz - 2, sz - 2);
+    ctx.globalAlpha = 1;
+    return;
+  }
+  const grad = ctx.createLinearGradient(px, py, px + sz, py + sz);
+  grad.addColorStop(0, ICE_COLORS[colorIdx]);
+  grad.addColorStop(1, darken(ICE_COLORS[colorIdx], 0.3));
+  ctx.fillStyle = grad;
+  ctx.fillRect(px + 1, py + 1, sz - 2, sz - 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.fillRect(px + 2, py + 2, sz - 4, 3);
+  ctx.strokeStyle = 'rgba(200,230,255,0.2)';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(px + 1, py + 1, sz - 2, sz - 2);
+}
+
+function drawBoard() {
+  boardCtx.clearRect(0, 0, 300, 600);
+
+  for (let y = 0; y < ROWS; y++)
+    for (let x = 0; x < COLS; x++) {
+      if (board[y][x]) {
+        if (animatingLines.includes(y)) {
+          boardCtx.globalAlpha = Math.sin(animFrame * 0.3) * 0.3 + 0.7;
+          drawCell(boardCtx, x, y, board[y][x], CELL, false);
+          boardCtx.globalAlpha = 1;
+        } else {
+          drawCell(boardCtx, x, y, board[y][x], CELL, false);
+        }
+      }
+    }
+
+  if (curPiece && state === 'playing') {
+    const gy = ghostY();
+    for (let y = 0; y < curPiece.length; y++)
+      for (let x = 0; x < curPiece[y].length; x++)
+        if (curPiece[y][x] && gy + y >= 0)
+          drawCell(boardCtx, curX + x, gy + y, curPiece[y][x], CELL, true);
+    for (let y = 0; y < curPiece.length; y++)
+      for (let x = 0; x < curPiece[y].length; x++)
+        if (curPiece[y][x] && curY + y >= 0)
+          drawCell(boardCtx, curX + x, curY + y, curPiece[y][x], CELL, false);
+  }
+
+  boardCtx.strokeStyle = 'rgba(40,100,160,0.12)';
+  boardCtx.lineWidth = 0.5;
+  for (let y = 0; y <= ROWS; y++) {
+    boardCtx.beginPath(); boardCtx.moveTo(0, y*CELL); boardCtx.lineTo(300, y*CELL); boardCtx.stroke();
+  }
+  for (let x = 0; x <= COLS; x++) {
+    boardCtx.beginPath(); boardCtx.moveTo(x*CELL, 0); boardCtx.lineTo(x*CELL, 600); boardCtx.stroke();
+  }
+}
+
+function drawNext() {
+  nextCtx.clearRect(0, 0, 120, 120);
+  const shape = SHAPES[nextType];
+  const size = 24;
+  const ox = Math.floor((120 - shape[0].length * size) / 2);
+  const oy = Math.floor((120 - shape.length * size) / 2);
+  for (let y = 0; y < shape.length; y++)
+    for (let x = 0; x < shape[y].length; x++)
+      if (shape[y][x]) {
+        const px = ox + x * size, py = oy + y * size;
+        const grad = nextCtx.createLinearGradient(px, py, px + size, py + size);
+        grad.addColorStop(0, ICE_COLORS[shape[y][x]]);
+        grad.addColorStop(1, darken(ICE_COLORS[shape[y][x]], 0.3));
+        nextCtx.fillStyle = grad;
+        nextCtx.fillRect(px + 1, py + 1, size - 2, size - 2);
+        nextCtx.fillStyle = 'rgba(255,255,255,0.18)';
+        nextCtx.fillRect(px + 2, py + 2, size - 4, 3);
+      }
+}
+
+function updateUI() {
+  document.getElementById('score-val').textContent = score.toLocaleString();
+  document.getElementById('level-val').textContent = level;
+  document.getElementById('lines-val').textContent = lines;
+  document.getElementById('level-fill').style.width = (linesForLevel / 10 * 100) + '%';
+}
+
+function penguinBounce() {
+  const el = document.getElementById('penguin-box');
+  el.classList.remove('happy');
+  void el.offsetWidth;
+  el.classList.add('happy');
+}
+
+function showOverlay(title, msg, penguin, hint) {
+  document.getElementById('overlay-title').textContent = title;
+  document.getElementById('overlay-msg').textContent = msg;
+  document.getElementById('overlay-penguin').textContent = penguin;
+  document.getElementById('overlay-hint').textContent = hint;
+  document.getElementById('overlay').classList.remove('hidden');
+}
+
+function hideOverlay() {
+  document.getElementById('overlay').classList.add('hidden');
+}
+
+function startGame() {
+  board = createBoard();
+  score = 0; lines = 0; level = 1; linesForLevel = 0;
+  dropInterval = 800; dropAccum = 0;
+  animatingLines = [];
+  state = 'playing';
+  nextType = randomType();
+  spawnPiece();
+  updateUI();
+  hideOverlay();
+  lastTime = performance.now();
+  requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+  state = 'over';
+  showOverlay('GAME OVER', 'Score: ' + score.toLocaleString() + '  |  Lines: ' + lines, '\u{1F622}', 'Press ENTER or SPACE to retry');
+}
+
+function gameLoop(ts) {
+  if (state === 'idle' || state === 'over') { drawBoard(); return; }
+  const dt = ts - lastTime;
+  lastTime = ts;
+  animFrame++;
+
+  if (state === 'playing') {
+    dropAccum += dt;
+    while (dropAccum >= dropInterval) {
+      dropAccum -= dropInterval;
+      if (!collides(curPiece, curX, curY + 1)) {
+        curY++;
+      } else {
+        lock();
+        break;
+      }
+    }
+  } else if (state === 'clearing') {
+    clearTimer -= dt;
+    if (clearTimer <= 0) finishClear();
+  }
+
+  drawBoard();
+  requestAnimationFrame(gameLoop);
+}
+
+document.addEventListener('keydown', e => {
+  const startKeys = ['Enter', 'Space'];
+  if (startKeys.includes(e.code) && (state === 'idle' || state === 'over')) {
+    e.preventDefault();
+    startGame();
+    return;
+  }
+
+  if (state !== 'playing') return;
+
+  if (e.code === 'ArrowLeft') {
+    e.preventDefault();
+    if (!collides(curPiece, curX - 1, curY)) curX--;
+  } else if (e.code === 'ArrowRight') {
+    e.preventDefault();
+    if (!collides(curPiece, curX + 1, curY)) curX++;
+  } else if (e.code === 'ArrowUp') {
+    e.preventDefault();
+    const rotated = rotate(curPiece);
+    if (!collides(rotated, curX, curY)) curPiece = rotated;
+    else if (!collides(rotated, curX - 1, curY)) { curX--; curPiece = rotated; }
+    else if (!collides(rotated, curX + 1, curY)) { curX++; curPiece = rotated; }
+    else if (!collides(rotated, curX - 2, curY)) { curX -= 2; curPiece = rotated; }
+    else if (!collides(rotated, curX + 2, curY)) { curX += 2; curPiece = rotated; }
+  } else if (e.code === 'ArrowDown') {
+    e.preventDefault();
+    if (!collides(curPiece, curX, curY + 1)) { curY++; score += 1; updateUI(); }
+  } else if (e.code === 'Space') {
+    e.preventDefault();
+    hardDrop();
+  }
+});
+
+document.getElementById('overlay').addEventListener('click', () => {
+  if (state === 'idle' || state === 'over') startGame();
+});
+
+// Snowfall
+(function() {
+  const c = document.getElementById('snow-bg');
+  const ctx = c.getContext('2d');
+  function resize() { c.width = innerWidth; c.height = innerHeight; }
+  resize();
+  addEventListener('resize', resize);
+  const flakes = Array.from({length: 50}, () => ({
+    x: Math.random() * innerWidth,
+    y: Math.random() * innerHeight,
+    r: Math.random() * 2.5 + 1,
+    dy: Math.random() * 0.7 + 0.2,
+    dx: Math.random() * 0.3 - 0.15,
+    o: Math.random() * 0.35 + 0.1,
+  }));
+  (function draw() {
+    ctx.clearRect(0, 0, c.width, c.height);
+    for (const f of flakes) {
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(200,230,255,' + f.o + ')';
+      ctx.fill();
+      f.y += f.dy;
+      f.x += f.dx + Math.sin(f.y * 0.008) * 0.25;
+      if (f.y > c.height + 10) { f.y = -10; f.x = Math.random() * c.width; }
+      if (f.x > c.width + 10) f.x = -10;
+      if (f.x < -10) f.x = c.width + 10;
+    }
+    requestAnimationFrame(draw);
+  })();
+})();
+
+state = 'idle';
+showOverlay('PENGUIN TETRIS', 'Stack ice blocks with the penguin!', '\u{1F427}', 'Press ENTER or SPACE to start');
+</script>
+</body>
+</html>
